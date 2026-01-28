@@ -104,21 +104,30 @@
         }
 
         document.getElementById('absenForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const data = {
-                nama: document.getElementById('nama').value,
-                kelas: document.getElementById('kelas').value,
-                status: document.getElementById('status').value,
-                keterangan: document.getElementById('keterangan').value || '-',
-                timestamp: new Date().toLocaleString('id-ID')
-            };
+    e.preventDefault();
+    
+    // Mengambil tanggal hari ini (Format: Rabu, 28 Juli 2026)
+    const sekarang = new Date();
+    const opsiTanggal = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    const tanggalHanya = sekarang.toLocaleDateString('id-ID', opsiTanggal);
+    const jamHanya = sekarang.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-            db.ref('absensi').push(data).then(() => {
-                alert('Berhasil mengirim absen!');
-                this.reset();
-                toggleKeterangan();
-            });
-        });
+    const data = {
+        nama: document.getElementById('nama').value,
+        kelas: document.getElementById('kelas').value,
+        status: document.getElementById('status').value,
+        keterangan: document.getElementById('keterangan').value || '-',
+        tanggal: tanggalHanya, // Ini untuk pengelompokan
+        jam: jamHanya,
+        timestamp: firebase.database.ServerValue.TIMESTAMP // Untuk pengurutan otomatis
+    };
+
+    db.ref('absensi').push(data).then(() => {
+        alert('Berhasil mengirim absen untuk tanggal: ' + tanggalHanya);
+        this.reset();
+        toggleKeterangan();
+    });
+});
 
         // --- LOGIC TABS & AUTH ---
         function switchTab(tab) {
@@ -156,21 +165,46 @@
         }
 
         function loadData() {
-            db.ref('absensi').on('value', (snapshot) => {
-                const tbody = document.getElementById('tableBody');
-                tbody.innerHTML = "";
-                snapshot.forEach((child) => {
-                    const row = `<tr>
-                        <td class="p-3 border-b text-sm">${child.val().timestamp}</td>
-                        <td class="p-3 border-b font-medium">${child.val().nama}</td>
-                        <td class="p-3 border-b">${child.val().kelas}</td>
-                        <td class="p-3 border-b"><span class="px-2 py-1 rounded text-xs ${child.val().status === 'Hadir' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}">${child.val().status}</span></td>
-                        <td class="p-3 border-b italic text-gray-600">${child.val().keterangan}</td>
+    db.ref('absensi').orderByChild('timestamp').on('value', (snapshot) => {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = "";
+        
+        let tanggalTerakhir = "";
+
+        snapshot.forEach((child) => {
+            const item = child.val();
+            
+            // Jika tanggalnya baru/berbeda, buat baris pemisah (Header Tanggal)
+            if (item.tanggal !== tanggalTerakhir) {
+                const headerRow = `
+                    <tr class="bg-gray-200">
+                        <td colspan="5" class="p-2 font-bold text-indigo-800 border-b border-t">
+                            📅 Tanggal: ${item.tanggal}
+                        </td>
                     </tr>`;
-                    tbody.innerHTML = row + tbody.innerHTML;
-                });
-            });
-        }
+                tbody.innerHTML = headerRow + tbody.innerHTML;
+                tanggalTerakhir = item.tanggal;
+            }
+
+            // Baris data siswa
+            const row = `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 border-b text-xs">${item.jam}</td>
+                    <td class="p-3 border-b font-medium">${item.nama}</td>
+                    <td class="p-3 border-b">${item.kelas}</td>
+                    <td class="p-3 border-b">
+                        <span class="px-2 py-1 rounded text-xs ${item.status === 'Hadir' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}">
+                            ${item.status}
+                        </span>
+                    </td>
+                    <td class="p-3 border-b italic text-gray-600 text-sm">${item.keterangan}</td>
+                </tr>`;
+            
+            // Masukkan data di bawah header tanggalnya
+            tbody.innerHTML = row + tbody.innerHTML;
+        });
+    });
+}
     </script>
 </body>
 </html>
